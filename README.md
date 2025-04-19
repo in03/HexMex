@@ -3,7 +3,7 @@
 > *Memorable IP addresses for memorable people*
 
 ![HexMex Banner](https://img.shields.io/badge/HexMex-Spicy%20IPv6%20Addresses-e30b5c?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyLDJDNi40OCwyIDIsNi40OCAyLDEyQzIsMTcuNTIgNi40OCwyMiAxMiwyMkMxNy41MiwyMiAyMiwxNy41MiAyMiwxMkMyMiw2LjQ4IDE3LjUyLDIgMTIsMk0xMiw1QzEzLjY2LDUgMTUsNi4zNCAxNSw4QzE1LDkuNjYgMTMuNjYsMTEgMTIsMTFDMTAuMzQsMTEgOSw5LjY2IDksOEM5LDYuMzQgMTAuMzQsNSAxMiw1TTEyLDE5LjJDOS41LDE5LjIgNy4yOSwxNy45MiA2LDE1Ljk4QzYuMDMsMTMuOTkgMTAsMTIuOSAxMiwxMi45QzEzLjk5LDEyLjkgMTcuOTcsMTMuOTkgMTgsMTUuOThDMTYuNzEsMTcuOTIgMTQuNSwxOS4yIDEyLDE5LjJaIiAvPjwvc3ZnPg==)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-00a556?style=for-the-badge&logo=github)](https://in03.github.io/ipv6/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-00a556?style=for-the-badge&logo=github)](https://in03.github.io/hexmex/)
 
 HexMex is a web-based tool that generates memorable, pronounceable IPv6 addresses using valid hexadecimal words. It's designed to make IPv6 addresses more human-friendly and easier to communicate when copy/paste isn't an option.
 
