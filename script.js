@@ -10,7 +10,7 @@ const DEFAULT_WORDS = [
 
 // Default blacklist
 const DEFAULT_BLACKLIST = [
-  "B00B", "B1CH", "B00C", "CACA"
+  "B00B", "B00C", "CACA"
 ];
 
 let currentWordlist = [...DEFAULT_WORDS];
