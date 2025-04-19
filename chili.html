@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyberpunk Neon Chili</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+    canvas {
+      display: block;
+    }
+    .info {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      color: #0ff;
+      font-family: monospace;
+      pointer-events: none;
+    }
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #0ff;
+      font-family: monospace;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">Cyberpunk Neon Chili</div>
+  <div class="loading" id="loading">Loading fonts...</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+  <script>
+    // Main script
+    document.addEventListener('DOMContentLoaded', () => {
+      // Setup scene, camera, and renderer
+      const scene = new THREE.Scene();
+
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 5;
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      // Create grid background immediately
+      createCyberpunkGrid(scene);
+
+      // Add lights
+      const lights = addLighting(scene);
+
+      // Load font and create chili emoji
+      const fontLoader = new THREE.FontLoader();
+      fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json', function(font) {
+        // Hide loading message
+        document.getElementById('loading').style.display = 'none';
+
+        // Create neon chili emoji
+        const chiliGroup = createChiliEmoji(font);
+        scene.add(chiliGroup);
+
+        // Animation loop
+        const clock = new THREE.Clock();
+
+        function animate() {
+          requestAnimationFrame(animate);
+
+          const time = clock.getElapsedTime();
+
+          // Animate chili
+          chiliGroup.position.y = Math.sin(time * 0.8) * 0.3;
+          chiliGroup.rotation.y = time * 0.5;
+          chiliGroup.rotation.z = Math.sin(time * 0.3) * 0.1;
+
+          // Animate lights and materials
+          updateEffects(time, lights);
+
+          renderer.render(scene, camera);
+        }
+
+        animate();
+      });
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Create chili emoji from text
+      function createChiliEmoji(font) {
+        const group = new THREE.Group();
+
+        // Create text geometry for chili emoji (🌶️)
+        const textOptions = {
+          font: font,
+          size: 2,
+          height: 0.4,
+          curveSegments: 12,
+          bevelEnabled: true,
+          bevelThickness: 0.1,
+          bevelSize: 0.05,
+          bevelOffset: 0,
+          bevelSegments: 5
+        };
+
+        // Create main chili emoji geometry
+        const chiliGeometry = new THREE.TextGeometry('🌶️', textOptions);
+        chiliGeometry.computeBoundingBox();
+
+        // Center the geometry
+        const centerOffset = -0.5 * (chiliGeometry.boundingBox.max.x - chiliGeometry.boundingBox.min.x);
+        chiliGeometry.translate(centerOffset, 0, 0);
+
+        // Create chili material with custom shader
+        const chiliMaterial = createNeonMaterial(0xff1100, 0xff0000);
+        const chiliMesh = new THREE.Mesh(chiliGeometry, chiliMaterial);
+
+        // Add highlight details to make it more emoji-like
+        addHighlights(chiliMesh, group);
+
+        // Add mesh to group
+        group.add(chiliMesh);
+
+        // Add glow effect
+        addGlowEffect(chiliMesh, 0xff2200, group);
+
+        return group;
+      }
+
+      // Create cyberpunk grid background
+      function createCyberpunkGrid(scene) {
+        // Floor grid
+        const gridSize = 40;
+        const gridDivisions = 40;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x0088ff, 0x0044aa);
+        gridHelper.position.y = -4;
+        scene.add(gridHelper);
+
+        // Create distant horizon grid
+        const horizonGridGeometry = new THREE.PlaneGeometry(200, 100);
+
+        const horizonGridMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0 },
+            color1: { value: new THREE.Color(0x0066ff) },
+            color2: { value: new THREE.Color(0x00ffff) }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float time;
+            uniform vec3 color1;
+            uniform vec3 color2;
+            varying vec2 vUv;
+
+            float grid(vec2 uv, float res) {
+              vec2 grid = fract(uv * res);
+              return (step(0.98, grid.x) + step(0.98, grid.y)) * 0.5;
+            }
+
+            void main() {
+              // Calculate the grid with moving scan lines
+              float gridVal = grid(vUv, 50.0);
+
+              // Add horizontal scan line
+              float scanLine = smoothstep(0.0, 0.1, sin(vUv.y * 100.0 - time * 2.0) * 0.5 + 0.5);
+
+              // Create a glow effect near horizon
+              float glow = smoothstep(0.4, 0.6, vUv.y);
+
+              vec3 color = mix(color1, color2, vUv.y);
+              color = mix(color * 0.2, color, gridVal + scanLine * 0.3);
+              color *= glow * 2.0;
+
+              gl_FragColor = vec4(color, 1.0);
+            }
+          `,
+          transparent: true,
+          side: THREE.DoubleSide
+        });
+
+        const horizonGrid = new THREE.Mesh(horizonGridGeometry, horizonGridMaterial);
+        horizonGrid.position.z = -50;
+        horizonGrid.position.y = 10;
+        scene.add(horizonGrid);
+
+        // Add some atmospheric fog
+        scene.fog = new THREE.FogExp2(0x000520, 0.035);
+
+        return { horizonGridMaterial };
+      }
+
+      // Create glowing neon material with pulse effect
+      function createNeonMaterial(baseColor, glowColor) {
+        return new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0 },
+            baseColor: { value: new THREE.Color(baseColor) },
+            glowColor: { value: new THREE.Color(glowColor) },
+            intensity: { value: 1.5 }
+          },
+          vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+
+            void main() {
+              vNormal = normalize(normalMatrix * normal);
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              vViewPosition = -mvPosition.xyz;
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+          fragmentShader: `
+            uniform float time;
+            uniform vec3 baseColor;
+            uniform vec3 glowColor;
+            uniform float intensity;
+
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+
+            void main() {
+              // Calculate a pulsing factor
+              float pulse = sin(time * 2.0) * 0.15 + 0.85;
+
+              // Calculate fresnel factor for edge glow
+              vec3 viewDirection = normalize(vViewPosition);
+              float fresnel = pow(1.0 + dot(viewDirection, vNormal), 3.0);
+              fresnel = mix(0.5, 1.0, fresnel) * pulse;
+
+              // Create electric noise pattern
+              float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + time) * 43758.5453);
+              noise = noise * 0.15 + 0.85;
+
+              vec3 finalColor = mix(baseColor, glowColor, fresnel) * intensity * noise;
+              gl_FragColor = vec4(finalColor, 1.0);
+            }
+          `,
+          side: THREE.DoubleSide
+        });
+      }
+
+      // Add electric highlights to make it look more detailed
+      function addHighlights(chiliMesh, group) {
+        // Create small highlight points
+        const highlightGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+        const highlightMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.8
+        });
+
+        // Add random highlights
+        for (let i = 0; i < 12; i++) {
+          const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 0.3 + Math.random() * 0.3;
+          const height = -1.0 + Math.random() * 2.5;
+
+          highlight.position.set(
+            Math.cos(angle) * radius,
+            height,
+            Math.sin(angle) * radius
+          );
+
+          group.add(highlight);
+        }
+      }
+
+      // Add volumetric glow using sprite
+      function addGlowEffect(mesh, color, group) {
+        const glowMaterial = new THREE.SpriteMaterial({
+          map: createGlowTexture(),
+          color: color,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          opacity: 0.7,
+        });
+
+        const glow = new THREE.Sprite(glowMaterial);
+        glow.scale.set(3, 5, 1);
+        group.add(glow);
+
+        return glow;
+      }
+
+      // Create a glow texture
+      function createGlowTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext('2d');
+
+        const gradient = context.createRadialGradient(
+          canvas.width / 2, canvas.height / 2, 0,
+          canvas.width / 2, canvas.height / 2, canvas.width / 2
+        );
+
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.5)');
+        gradient.addColorStop(0.7, 'rgba(255, 64, 64, 0.2)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        const texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+        return texture;
+      }
+
+      // Add dynamic lighting
+      function addLighting(scene) {
+        // Ambient light
+        const ambient = new THREE.AmbientLight(0x111122, 0.2);
+        scene.add(ambient);
+
+        // Main highlight light
+        const mainLight = new THREE.PointLight(0xff0000, 1, 10);
+        mainLight.position.set(2, 1, 2);
+        scene.add(mainLight);
+
+        // Blue rim light
+        const rimLight = new THREE.PointLight(0x0066ff, 1, 10);
+        rimLight.position.set(-2, 0, 2);
+        scene.add(rimLight);
+
+        // Top purple light
+        const topLight = new THREE.PointLight(0xff00ff, 0.7, 10);
+        topLight.position.set(0, 3, 1);
+        scene.add(topLight);
+
+        // Add electric arcs around the chili
+        createElectricArcs(scene);
+
+        return { mainLight, rimLight, topLight };
+      }
+
+      // Create electric arc particles
+      function createElectricArcs(scene) {
+        const particleCount = 300;
+        const particleGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+
+        const color1 = new THREE.Color(0x00ffff);
+        const color2 = new THREE.Color(0xff00ff);
+
+        for (let i = 0; i < particleCount; i++) {
+          // Create particle positions in a torus shape around the chili
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 1.5 + Math.random() * 0.5;
+          const height = -1.5 + Math.random() * 3;
+
+          positions[i * 3] = Math.cos(angle) * radius;
+          positions[i * 3 + 1] = height;
+          positions[i * 3 + 2] = Math.sin(angle) * radius;
+
+          // Mix colors
+          const mixFactor = Math.random();
+          const mixedColor = color1.clone().lerp(color2, mixFactor);
+
+          colors[i * 3] = mixedColor.r;
+          colors[i * 3 + 1] = mixedColor.g;
+          colors[i * 3 + 2] = mixedColor.b;
+
+          // Random sizes
+          sizes[i] = Math.random() * 0.1 + 0.02;
+        }
+
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        particleGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        const particleMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            time: { value: 0 },
+            pointTexture: { value: createGlowTexture() }
+          },
+          vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float time;
+
+            void main() {
+              vColor = color;
+
+              // Animate particle position
+              vec3 pos = position;
+              float noise = sin(position.x * 10.0 + time * 3.0) * cos(position.y * 8.0 + time * 2.0) * 0.1;
+              pos.x += noise;
+              pos.z += noise;
+
+              vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+              gl_PointSize = size * (300.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            uniform sampler2D pointTexture;
+
+            void main() {
+              gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+            }
+          `,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          transparent: true,
+          vertexColors: true
+        });
+
+        const particles = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particles);
+
+        return particles;
+      }
+
+      // Function to update effects every frame
+      function updateEffects(time, lights) {
+        // Find and update all shader materials
+        scene.traverse((object) => {
+          if (object.material && object.material.uniforms && object.material.uniforms.time) {
+            object.material.uniforms.time.value = time;
+          }
+
+          // Pulse the emissive intensity for regular materials
+          if (object.material && object.material.emissive) {
+            const pulseIntensity = Math.sin(time * 3) * 0.2 + 0.8;
+            object.material.emissiveIntensity = pulseIntensity;
+          }
+        });
+
+        // Animate lights if they exist
+        if (lights) {
+          if (lights.mainLight) {
+            lights.mainLight.intensity = 1 + Math.sin(time * 2) * 0.3;
+          }
+          if (lights.rimLight) {
+            lights.rimLight.intensity = 1 + Math.sin(time * 3 + 1) * 0.3;
+          }
+          if (lights.topLight) {
+            lights.topLight.intensity = 0.7 + Math.sin(time * 2.5 + 2) * 0.2;
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

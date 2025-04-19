@@ -1,9 +1,0 @@
-[project]
-name = "ipv6-cheekygen"
-version = "0.1.0"
-description = "Generates cheeky valid IPv6 addresses using valid words only."
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "rich>=14.0.0",
-]
