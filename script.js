@@ -20,8 +20,127 @@ let validLeetWords = [];
 // Regular expression for validating hex words
 const hexPattern = /^[A-F0-9]{4}$/;
 
+// Modal state and functions
+let currentModalCallback = null;
+
+// Function to show a modal with custom content
+function showModal(title, message, confirmText, cancelText, callback) {
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalMessage = document.getElementById('modalMessage');
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  const cancelBtn = document.getElementById('modalCancelBtn');
+
+  // Set content
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  confirmBtn.textContent = confirmText || 'Confirm';
+
+  // Show/hide cancel button based on text
+  if (cancelText) {
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.display = 'block';
+  } else {
+    cancelBtn.style.display = 'none';
+  }
+
+  // Store callback
+  currentModalCallback = callback;
+
+  // Show modal with animation
+  modalBackdrop.style.display = 'flex';
+  setTimeout(() => {
+    modalBackdrop.classList.add('active');
+  }, 10);
+
+  // Add event listeners
+  confirmBtn.onclick = function(e) {
+    e.stopPropagation();
+    confirmModal();
+  };
+
+  cancelBtn.onclick = function(e) {
+    e.stopPropagation();
+    cancelModal();
+  };
+
+  // Prevent clicks on the backdrop from closing the modal
+  modalBackdrop.onclick = function(e) {
+    if (e.target === modalBackdrop) {
+      cancelModal();
+    }
+  };
+}
+
+// Function to hide the modal
+function hideModal() {
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  modalBackdrop.classList.remove('active');
+
+  // Wait for animation to complete before hiding
+  setTimeout(() => {
+    modalBackdrop.style.display = 'none';
+  }, 300);
+
+  // Reset callback
+  currentModalCallback = null;
+}
+
+// Function to handle confirm button click
+function confirmModal() {
+  if (currentModalCallback) {
+    currentModalCallback(true);
+  }
+  hideModal();
+}
+
+// Function to handle cancel button click
+function cancelModal() {
+  if (currentModalCallback) {
+    currentModalCallback(false);
+  }
+  hideModal();
+}
+
+// Dynamic subtitles for the header
+const dynamicSubtitles = [
+  "Addresses that look as good as you do",
+  "Intranet vanity plates",
+  "Memorable IP addresses for memorable people",
+  "Spicy pseudo-domains for the social elite",
+  "Network identifiers with personality",
+  "IPv6 addresses that sizzle like fajitas",
+  "Digital real estate with Mexican flair",
+  "Addresses hotter than jalapeños"
+];
+
+// Function to set a random subtitle
+function setRandomSubtitle() {
+  const randomIndex = Math.floor(Math.random() * dynamicSubtitles.length);
+  const subtitle = document.querySelector('h2');
+  if (subtitle) {
+    subtitle.textContent = dynamicSubtitles[randomIndex];
+  }
+}
+
+// Function to update subtitle on tab change
+function updateSubtitleOnTabChange() {
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      setRandomSubtitle();
+    });
+  });
+}
+
 // Initialize app
 window.onload = function() {
+  // Set a random subtitle on page load
+  setRandomSubtitle();
+
+  // Set up subtitle changes on tab navigation
+  updateSubtitleOnTabChange();
+
   // Load last used blacklist from localStorage if available
   const savedBlacklist = localStorage.getItem('ipv6Blacklist');
   if (savedBlacklist) {
@@ -68,6 +187,12 @@ window.onload = function() {
 
   // Set up leet converter
   setupLeetConverter();
+
+  // Initialize drag and drop functionality
+  initDragAndDrop();
+
+  // Adjust container heights initially
+  setTimeout(adjustContainerHeights, 100);
 };
 
 // Function to generate IPv6 addresses
@@ -124,11 +249,15 @@ function generateAddresses() {
     const copyBtn = document.createElement('button');
     copyBtn.classList.add('copy-btn');
     copyBtn.textContent = 'Copy';
-    copyBtn.onclick = function() {
+    copyBtn.onclick = function(e) {
       navigator.clipboard.writeText(address)
         .then(() => {
+          // Update button text
           copyBtn.textContent = 'Copied!';
           setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+
+          // Trigger confetti explosion from the button position
+          triggerConfetti(e.clientX, e.clientY);
         })
         .catch(err => {
           console.error('Failed to copy: ', err);
@@ -447,11 +576,25 @@ function openTab(evt, tabName) {
 
   document.getElementById(tabName).classList.add("active");
   evt.currentTarget.classList.add("active");
+
+  // If switching to the wordlist tab, adjust container heights
+  if (tabName === 'wordsTab') {
+    setTimeout(adjustContainerHeights, 0);
+  }
 }
 
 // Function to toggle accordions
 function toggleAccordion(element) {
   element.parentElement.classList.toggle('accordion-expanded');
+}
+
+// Function to adjust container heights
+function adjustContainerHeights() {
+  // We're using fixed heights in CSS now, so this function is simpler
+  // Both containers will have the same height (300px) as defined in CSS
+  // This ensures consistent sizing between the wordlist and blacklist containers
+
+  // If we need to adjust heights dynamically in the future, we can modify this function
 }
 
 function updateWordlistDisplay(filter = '') {
@@ -464,6 +607,8 @@ function updateWordlistDisplay(filter = '') {
 
   if (currentWordlist.length === 0) {
     container.innerHTML = '<div style="color: var(--error-color);">No words in list</div>';
+    // Adjust container heights after updating content
+    setTimeout(adjustContainerHeights, 0);
     return;
   }
 
@@ -479,9 +624,15 @@ function updateWordlistDisplay(filter = '') {
     countBadge.textContent = currentWordlist.length;
   }
 
+  // Set up container as a drop zone
+  setupDropZone(container, 'wordlist');
+
   displayWords.forEach(word => {
     const chip = document.createElement('div');
-    chip.classList.add('word-chip');
+    chip.classList.add('word-chip', 'draggable');
+    chip.setAttribute('draggable', 'false'); // Start with draggable false
+    chip.setAttribute('data-word', word);
+    chip.setAttribute('data-source', 'wordlist');
 
     // Highlight the matching part if filtering
     if (filter && word.includes(filter.toUpperCase())) {
@@ -529,10 +680,16 @@ function updateWordlistDisplay(filter = '') {
 
     chip.appendChild(removeBtn);
     container.appendChild(chip);
+
+    // Set up drag events
+    setupDragEvents(chip);
   });
 
   // Update stats
   updateStats();
+
+  // Adjust container heights after updating content
+  setTimeout(adjustContainerHeights, 0);
 }
 
 function updateBlacklistDisplay(filter = '') {
@@ -545,6 +702,8 @@ function updateBlacklistDisplay(filter = '') {
 
   if (currentBlacklist.length === 0) {
     container.innerHTML = '<div style="color: var(--accent-color);">No blacklisted words</div>';
+    // Adjust container heights after updating content
+    setTimeout(adjustContainerHeights, 0);
     return;
   }
 
@@ -560,9 +719,15 @@ function updateBlacklistDisplay(filter = '') {
     countBadge.textContent = currentBlacklist.length;
   }
 
+  // Set up container as a drop zone
+  setupDropZone(container, 'blacklist');
+
   displayWords.forEach(word => {
     const chip = document.createElement('div');
-    chip.classList.add('word-chip', 'blacklist-chip');
+    chip.classList.add('word-chip', 'blacklist-chip', 'draggable');
+    chip.setAttribute('draggable', 'false'); // Start with draggable false
+    chip.setAttribute('data-word', word);
+    chip.setAttribute('data-source', 'blacklist');
 
     // Highlight the matching part if filtering
     if (filter && word.includes(filter.toUpperCase())) {
@@ -610,7 +775,13 @@ function updateBlacklistDisplay(filter = '') {
 
     chip.appendChild(removeBtn);
     container.appendChild(chip);
+
+    // Set up drag events
+    setupDragEvents(chip);
   });
+
+  // Adjust container heights after updating content
+  setTimeout(adjustContainerHeights, 0);
 }
 
 function updateStats() {
@@ -826,6 +997,59 @@ function filterBlacklistedWords(wordlist) {
   return wordlist.filter(word => !currentBlacklist.includes(word));
 }
 
+// Debounce timer for confetti
+let confettiTimer = null;
+
+// Function to trigger confetti explosion from sides of screen
+function triggerConfetti(_, y) {
+  // If a confetti animation is already in progress, don't start another one
+  if (confettiTimer !== null) return;
+
+  // Configure confetti with Mexican-themed colors
+  const colors = [
+    '#FF0000', // Red
+    '#00AA13', // Green
+    '#FFFFFF', // White
+    '#FFC800', // Gold/Yellow
+    '#FF6600'  // Orange
+  ];
+
+  // Calculate target Y position (normalized) based on click position
+  // This ensures confetti aims toward the clicked area
+  const targetY = y / window.innerHeight;
+
+  // Left side confetti
+  confetti({
+    particleCount: 50,
+    angle: 60, // Angle from left side
+    spread: 40,
+    origin: { x: 0, y: targetY },
+    colors: colors,
+    ticks: 200,
+    gravity: 0.8,
+    scalar: 1.0,
+    shapes: ['square', 'circle']
+  });
+
+  // Right side confetti
+  confetti({
+    particleCount: 50,
+    angle: 120, // Angle from right side (180 - 60)
+    spread: 40,
+    origin: { x: 1, y: targetY },
+    colors: colors,
+    ticks: 200,
+    gravity: 0.8,
+    scalar: 1.0,
+    shapes: ['square', 'circle']
+  });
+
+  // Set debounce timer to prevent excessive confetti
+  confettiTimer = setTimeout(() => {
+    confettiTimer = null;
+  }, 1000); // 1 second cooldown
+}
+
 function resetToDefaultWords() {
   currentWordlist = [...DEFAULT_WORDS];
   localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
@@ -854,12 +1078,16 @@ function parseWordsFromText(text) {
 // Setup search input event listeners
 function setupSearchListeners() {
   const unifiedSearch = document.getElementById('unifiedSearch');
+  const searchValidation = document.getElementById('searchValidation');
 
   // Unified search
   unifiedSearch.addEventListener('input', function() {
     const searchTerm = this.value.trim().toUpperCase();
     updateWordlistDisplay(searchTerm);
     updateBlacklistDisplay(searchTerm);
+
+    // Validate the search term
+    validateSearchTerm(searchTerm);
 
     // Check if we need to show a suggestion
     if (searchTerm && isValidHexWord(searchTerm) &&
@@ -878,10 +1106,98 @@ function setupSearchListeners() {
       if (searchTerm && isValidHexWord(searchTerm)) {
         if (!currentWordlist.includes(searchTerm) && !currentBlacklist.includes(searchTerm)) {
           addWordToList(searchTerm);
+        } else if (currentWordlist.includes(searchTerm)) {
+          searchValidation.textContent = 'This word is already in your wordlist!';
+          searchValidation.className = 'search-validation warning';
+        } else if (currentBlacklist.includes(searchTerm)) {
+          searchValidation.textContent = 'This word is in your blacklist!';
+          searchValidation.className = 'search-validation invalid';
         }
+      } else if (searchTerm) {
+        searchValidation.textContent = 'Not a valid hex word! Must only contain characters 0-9 and A-F, and be 4 characters long.';
+        searchValidation.className = 'search-validation invalid';
       }
     }
   });
+}
+
+// Function to check if a word might be leetable
+function isPotentiallyLeetable(word) {
+  // Characters that aren't valid hex but could be converted to leet
+  const nonHexChars = ['H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'U', 'V', 'W', 'X', 'Y'];
+
+  // Check if the word is 4 characters long
+  if (word.length !== 4) return false;
+
+  // Check if the word contains any non-hex characters that could be converted
+  for (const char of word.toUpperCase()) {
+    if (nonHexChars.includes(char)) return true;
+  }
+
+  return false;
+}
+
+// Function to open the Leet tab
+function openLeetTab() {
+  // Find the leet tab and click it
+  const leetTab = document.querySelector('.tab[onclick="openTab(event, \'leetTab\')"]');
+  if (leetTab) {
+    leetTab.click();
+
+    // Set the leet input to the current search term
+    const searchInput = document.getElementById('unifiedSearch');
+    const leetInput = document.getElementById('leetInput');
+    if (searchInput && leetInput) {
+      leetInput.value = searchInput.value.trim();
+      convertLeetRealtime(); // Trigger conversion
+    }
+  }
+}
+
+// Validate search term
+function validateSearchTerm(term) {
+  const searchValidation = document.getElementById('searchValidation');
+
+  // Clear validation if empty
+  if (!term) {
+    searchValidation.textContent = '';
+    searchValidation.className = 'search-validation';
+    return;
+  }
+
+  // Check if it's a valid hex word
+  if (!isValidHexWord(term)) {
+    if (term.length !== 4) {
+      searchValidation.textContent = 'Word must be exactly 4 characters long';
+    } else {
+      // Check if the word might be leetable
+      if (isPotentiallyLeetable(term)) {
+        searchValidation.innerHTML = 'Word must only contain characters 0-9 and A-F. <a href="#" onclick="openLeetTab(); return false;">Try Leet Converter?</a>';
+      } else {
+        searchValidation.textContent = 'Word must only contain characters 0-9 and A-F';
+      }
+    }
+    searchValidation.className = 'search-validation invalid';
+    return;
+  }
+
+  // Check if it's already in the wordlist
+  if (currentWordlist.includes(term)) {
+    searchValidation.textContent = 'This word is already in your wordlist';
+    searchValidation.className = 'search-validation warning';
+    return;
+  }
+
+  // Check if it's in the blacklist
+  if (currentBlacklist.includes(term)) {
+    searchValidation.textContent = 'This word is in your blacklist';
+    searchValidation.className = 'search-validation invalid';
+    return;
+  }
+
+  // If we got here, the word is valid
+  searchValidation.textContent = 'Valid hex word! Press Enter to add';
+  searchValidation.className = 'search-validation valid';
 }
 
 // Show suggestion for a new word
@@ -947,6 +1263,7 @@ function hideSuggestion() {
 // Add a word to the wordlist
 function addWordToList(wordToAdd) {
   const searchInput = document.getElementById('unifiedSearch');
+  const searchValidation = document.getElementById('searchValidation');
   const word = wordToAdd || searchInput.value.trim().toUpperCase();
 
   if (!word) {
@@ -954,17 +1271,20 @@ function addWordToList(wordToAdd) {
   }
 
   if (!isValidHexWord(word)) {
-    alert('Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.');
+    searchValidation.textContent = 'Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.';
+    searchValidation.className = 'search-validation invalid';
     return;
   }
 
   if (currentWordlist.includes(word)) {
-    alert('This word is already in your wordlist.');
+    searchValidation.textContent = 'This word is already in your wordlist.';
+    searchValidation.className = 'search-validation warning';
     return;
   }
 
   if (currentBlacklist.includes(word)) {
-    alert('This word is in your blacklist. Remove it from the blacklist first.');
+    searchValidation.textContent = 'This word is in your blacklist. Remove it from the blacklist first.';
+    searchValidation.className = 'search-validation invalid';
     return;
   }
 
@@ -972,8 +1292,10 @@ function addWordToList(wordToAdd) {
   currentWordlist.push(word);
   localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
 
-  // Clear the search input
+  // Clear the search input and validation
   searchInput.value = '';
+  searchValidation.textContent = '';
+  searchValidation.className = 'search-validation';
 
   // Update display
   updateWordlistDisplay();
@@ -989,23 +1311,45 @@ function addWordToList(wordToAdd) {
 
 // Remove a word from the wordlist
 function removeWordFromList(word) {
-  currentWordlist = currentWordlist.filter(w => w !== word);
-  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+  showModal(
+    'Remove Word',
+    `Do you want to blacklist "${word}" to prevent it from being re-added in the future?`,
+    'Yes, Blacklist It',
+    'No, Just Remove',
+    (shouldBlacklist) => {
+      if (shouldBlacklist) {
+        // Add to blacklist first
+        currentBlacklist.push(word);
+        localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+        updateBlacklistDisplay();
+      }
 
-  // Update display
-  const searchTerm = document.getElementById('unifiedSearch').value.trim().toUpperCase();
-  updateWordlistDisplay(searchTerm);
+      // Remove from wordlist
+      currentWordlist = currentWordlist.filter(w => w !== word);
+      localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
 
-  // Provide feedback
-  const output = document.getElementById('output');
-  if (output) {
-    output.innerHTML = `# Removed "${word}" from your wordlist.\n# ${currentWordlist.length} words remaining.\n`;
-  }
+      // Update display
+      const searchTerm = document.getElementById('unifiedSearch').value.trim().toUpperCase();
+      updateWordlistDisplay(searchTerm);
+
+      // Provide feedback
+      const output = document.getElementById('output');
+      if (output) {
+        output.innerHTML = shouldBlacklist
+          ? `# "${word}" was removed and blacklisted.\n# ${currentWordlist.length} words remaining.\n`
+          : `# "${word}" was removed.\n# ${currentWordlist.length} words remaining.\n`;
+      }
+
+      // Trigger confetti for visual feedback
+      triggerConfetti(window.innerWidth / 2, window.innerHeight / 2);
+    }
+  );
 }
 
 // Add a word to the blacklist
 function addWordToBlacklist(wordToAdd) {
   const searchInput = document.getElementById('unifiedSearch');
+  const searchValidation = document.getElementById('searchValidation');
   const word = wordToAdd || searchInput.value.trim().toUpperCase();
 
   if (!word) {
@@ -1013,12 +1357,14 @@ function addWordToBlacklist(wordToAdd) {
   }
 
   if (!isValidHexWord(word)) {
-    alert('Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.');
+    searchValidation.textContent = 'Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.';
+    searchValidation.className = 'search-validation invalid';
     return;
   }
 
   if (currentBlacklist.includes(word)) {
-    alert('This word is already in your blacklist.');
+    searchValidation.textContent = 'This word is already in your blacklist.';
+    searchValidation.className = 'search-validation warning';
     return;
   }
 
@@ -1033,8 +1379,10 @@ function addWordToBlacklist(wordToAdd) {
     updateWordlistDisplay();
   }
 
-  // Clear the search input
+  // Clear the search input and validation
   searchInput.value = '';
+  searchValidation.textContent = '';
+  searchValidation.className = 'search-validation';
 
   // Update display
   updateBlacklistDisplay();
@@ -1065,32 +1413,48 @@ function removeWordFromBlacklist(word) {
 
 // Clear the wordlist
 function clearWordlist() {
-  if (confirm('Are you sure you want to clear your entire wordlist?')) {
-    currentWordlist = [];
-    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
-    updateWordlistDisplay();
+  showModal(
+    '¡Advertencia! - Warning',
+    'Are you sure you want to clear your entire wordlist? This action cannot be undone.',
+    'Yes, Clear All',
+    'No, Keep My Words',
+    (confirmed) => {
+      if (confirmed) {
+        currentWordlist = [];
+        localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+        updateWordlistDisplay();
 
-    // Provide feedback
-    const output = document.getElementById('output');
-    if (output) {
-      output.innerHTML = '# Wordlist cleared. All words have been removed.\n';
+        // Provide feedback
+        const output = document.getElementById('output');
+        if (output) {
+          output.innerHTML = '# Wordlist cleared. All words have been removed.\n';
+        }
+      }
     }
-  }
+  );
 }
 
 // Clear the blacklist
 function clearBlacklist() {
-  if (confirm('Are you sure you want to clear your entire blacklist?')) {
-    currentBlacklist = [];
-    localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
-    updateBlacklistDisplay();
+  showModal(
+    '¡Advertencia! - Warning',
+    'Are you sure you want to clear your entire blacklist? This action cannot be undone.',
+    'Yes, Clear All',
+    'No, Keep Blacklist',
+    (confirmed) => {
+      if (confirmed) {
+        currentBlacklist = [];
+        localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+        updateBlacklistDisplay();
 
-    // Provide feedback
-    const output = document.getElementById('output');
-    if (output) {
-      output.innerHTML = '# Blacklist cleared. All words have been removed.\n';
+        // Provide feedback
+        const output = document.getElementById('output');
+        if (output) {
+          output.innerHTML = '# Blacklist cleared. All words have been removed.\n';
+        }
+      }
     }
-  }
+  );
 }
 
 // Reset blacklist to defaults
@@ -1239,6 +1603,320 @@ function removeFilteredFromBlacklist() {
     if (output) {
       output.innerHTML = `# Removed ${filteredWords.length} filtered word(s) from your blacklist.\n# ${currentBlacklist.length} blacklisted words remaining.\n`;
     }
+  }
+}
+
+// Drag and drop functionality
+
+// Global variables for drag state
+let isDragging = false;
+let draggedWord = null;
+let draggedSource = null;
+let wordlistHighlight = null;
+let blacklistHighlight = null;
+let globalOverlay = null;
+
+// Initialize drag and drop functionality
+function initDragAndDrop() {
+  // Create global overlay container
+  globalOverlay = document.createElement('div');
+  globalOverlay.classList.add('global-dropzone-overlay');
+  document.body.appendChild(globalOverlay);
+
+  // Create wordlist highlight
+  wordlistHighlight = document.createElement('div');
+  wordlistHighlight.classList.add('dropzone-highlight', 'wordlist-highlight');
+  wordlistHighlight.innerHTML = '✅'; // Checkmark
+
+  // Create blacklist highlight
+  blacklistHighlight = document.createElement('div');
+  blacklistHighlight.classList.add('dropzone-highlight', 'blacklist-highlight');
+  blacklistHighlight.innerHTML = '🚫'; // Prohibition sign
+
+  // Add global event listeners for drag and drop
+  document.addEventListener('dragover', handleGlobalDragOver);
+  document.addEventListener('dragend', handleGlobalDragEnd);
+  document.addEventListener('drop', handleGlobalDrop);
+}
+
+// Set up drag events for a draggable item
+function setupDragEvents(element) {
+  // Use mousedown to prevent interference with click events
+  element.addEventListener('mousedown', function(e) {
+    // Only start drag if it's not the remove button
+    if (!e.target.classList.contains('remove-word')) {
+      element.setAttribute('draggable', 'true');
+    }
+  });
+
+  // Touch support for mobile
+  element.addEventListener('touchstart', function(e) {
+    // Only start drag if it's not the remove button
+    if (!e.target.classList.contains('remove-word')) {
+      element.setAttribute('draggable', 'true');
+    }
+  }, { passive: true });
+
+  // After drag or if mouse/touch is released, disable draggable
+  element.addEventListener('mouseup', function() {
+    setTimeout(() => {
+      element.setAttribute('draggable', 'false');
+    }, 100); // Small delay to allow click events to fire first
+  });
+
+  element.addEventListener('touchend', function() {
+    setTimeout(() => {
+      element.setAttribute('draggable', 'false');
+    }, 100); // Small delay to allow click events to fire first
+  }, { passive: true });
+
+  element.addEventListener('dragstart', handleDragStart);
+}
+
+// Set up drop zone for a container
+function setupDropZone(container, type) {
+  // Store the container type
+  container.setAttribute('data-container-type', type);
+}
+
+// Handle drag start event
+function handleDragStart(e) {
+  // Set drag state
+  isDragging = true;
+  draggedWord = this.getAttribute('data-word');
+  draggedSource = this.getAttribute('data-source');
+
+  // Add dragging class for visual feedback
+  this.classList.add('dragging');
+
+  // Set the drag data
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', JSON.stringify({
+    word: draggedWord,
+    source: draggedSource
+  }));
+
+  // Set a custom drag image (optional)
+  const dragImage = this.cloneNode(true);
+  dragImage.style.opacity = '0.7';
+  dragImage.style.position = 'absolute';
+  dragImage.style.top = '-1000px';
+  document.body.appendChild(dragImage);
+  e.dataTransfer.setDragImage(dragImage, 0, 0);
+
+  // Remove the clone after a short delay
+  setTimeout(() => {
+    document.body.removeChild(dragImage);
+  }, 0);
+
+  // Show the global overlay
+  globalOverlay.style.display = 'block';
+
+  // Add highlights to appropriate containers
+  updateDropzoneHighlights();
+}
+
+// Handle global drag over event
+function handleGlobalDragOver(e) {
+  if (!isDragging) return;
+  e.preventDefault();
+
+  // Get element under pointer
+  const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+  if (!elemBelow) return;
+
+  // Find the container element
+  const wordlistContainer = document.getElementById('wordlistDisplay');
+  const blacklistContainer = document.getElementById('blacklistDisplay');
+
+  // Check if we're over a valid container
+  const wordlistRect = wordlistContainer.getBoundingClientRect();
+  const blacklistRect = blacklistContainer.getBoundingClientRect();
+
+  // Check if pointer is over wordlist container
+  const overWordlist =
+    e.clientX >= wordlistRect.left &&
+    e.clientX <= wordlistRect.right &&
+    e.clientY >= wordlistRect.top &&
+    e.clientY <= wordlistRect.bottom;
+
+  // Check if pointer is over blacklist container
+  const overBlacklist =
+    e.clientX >= blacklistRect.left &&
+    e.clientX <= blacklistRect.right &&
+    e.clientY >= blacklistRect.top &&
+    e.clientY <= blacklistRect.bottom;
+
+  // Update highlights based on position
+  if (overWordlist && draggedSource !== 'wordlist') {
+    // Position the highlight over the wordlist container
+    positionHighlight(wordlistHighlight, wordlistContainer);
+    wordlistHighlight.classList.add('active');
+  } else {
+    wordlistHighlight.classList.remove('active');
+  }
+
+  if (overBlacklist && draggedSource !== 'blacklist') {
+    // Position the highlight over the blacklist container
+    positionHighlight(blacklistHighlight, blacklistContainer);
+    blacklistHighlight.classList.add('active');
+  } else {
+    blacklistHighlight.classList.remove('active');
+  }
+}
+
+// Position a highlight element over a container
+function positionHighlight(highlight, container) {
+  const rect = container.getBoundingClientRect();
+  highlight.style.position = 'fixed';
+  highlight.style.left = rect.left + 'px';
+  highlight.style.top = rect.top + 'px';
+  highlight.style.width = rect.width + 'px';
+  highlight.style.height = rect.height + 'px';
+}
+
+// Update dropzone highlights
+function updateDropzoneHighlights() {
+  // Clear existing highlights
+  globalOverlay.innerHTML = '';
+
+  // Only show appropriate highlights based on source
+  if (draggedSource === 'wordlist') {
+    // If dragging from wordlist, only show blacklist as target
+    globalOverlay.appendChild(blacklistHighlight);
+  } else if (draggedSource === 'blacklist') {
+    // If dragging from blacklist, only show wordlist as target
+    globalOverlay.appendChild(wordlistHighlight);
+  }
+}
+
+// Handle global drag end event
+function handleGlobalDragEnd() {
+  resetDragState();
+}
+
+// Handle global drop event
+function handleGlobalDrop(e) {
+  if (!isDragging) return;
+  e.preventDefault();
+
+  // Get element under pointer
+  const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+  if (!elemBelow) {
+    resetDragState();
+    return;
+  }
+
+  // Find the container element
+  const wordlistContainer = document.getElementById('wordlistDisplay');
+  const blacklistContainer = document.getElementById('blacklistDisplay');
+
+  // Check if we're over a valid container
+  const wordlistRect = wordlistContainer.getBoundingClientRect();
+  const blacklistRect = blacklistContainer.getBoundingClientRect();
+
+  // Check if pointer is over wordlist container
+  const overWordlist =
+    e.clientX >= wordlistRect.left &&
+    e.clientX <= wordlistRect.right &&
+    e.clientY >= wordlistRect.top &&
+    e.clientY <= wordlistRect.bottom;
+
+  // Check if pointer is over blacklist container
+  const overBlacklist =
+    e.clientX >= blacklistRect.left &&
+    e.clientX <= blacklistRect.right &&
+    e.clientY >= blacklistRect.top &&
+    e.clientY <= blacklistRect.bottom;
+
+  // Handle drop based on container
+  if (overWordlist && draggedSource === 'blacklist') {
+    // Move from blacklist to wordlist
+    handleMoveToWordlist(draggedWord);
+  } else if (overBlacklist && draggedSource === 'wordlist') {
+    // Move from wordlist to blacklist
+    handleMoveToBlacklist(draggedWord);
+  }
+
+  // Reset drag state
+  resetDragState();
+}
+
+// Reset drag state
+function resetDragState() {
+  // Reset drag state
+  isDragging = false;
+  draggedWord = null;
+  draggedSource = null;
+
+  // Hide highlights
+  if (wordlistHighlight) wordlistHighlight.classList.remove('active');
+  if (blacklistHighlight) blacklistHighlight.classList.remove('active');
+
+  // Hide global overlay
+  if (globalOverlay) globalOverlay.style.display = 'none';
+
+  // Remove dragging class from all elements
+  document.querySelectorAll('.dragging').forEach(elem => {
+    elem.classList.remove('dragging');
+  });
+}
+
+// Handle moving a word to the blacklist
+function handleMoveToBlacklist(word) {
+  // Remove from wordlist
+  currentWordlist = currentWordlist.filter(w => w !== word);
+  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+  // Add to blacklist if not already there
+  if (!currentBlacklist.includes(word)) {
+    currentBlacklist.push(word);
+    localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+  }
+
+  // Clear search input to show all words
+  const searchInput = document.getElementById('unifiedSearch');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+
+  // Update displays with no filter to show all words
+  updateWordlistDisplay();
+  updateBlacklistDisplay();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# "${word}" was moved to the blacklist.\n`;
+  }
+}
+
+// Handle moving a word to the wordlist
+function handleMoveToWordlist(word) {
+  // Remove from blacklist
+  currentBlacklist = currentBlacklist.filter(w => w !== word);
+  localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+  // Add to wordlist if not already there
+  if (!currentWordlist.includes(word)) {
+    currentWordlist.push(word);
+    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+  }
+
+  // Clear search input to show all words
+  const searchInput = document.getElementById('unifiedSearch');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+
+  // Update displays with no filter to show all words
+  updateWordlistDisplay();
+  updateBlacklistDisplay();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# "${word}" was moved to the wordlist.\n`;
   }
 }
 
