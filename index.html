@@ -66,74 +66,21 @@
       <div class="control-panel">
         <h3>Hex Word Library Management</h3>
 
-        <div class="accordion">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>Upload Word List</span>
-            <span class="toggle-icon">▼</span>
+        <div class="unified-controls">
+          <div class="search-container">
+            <input type="text" id="unifiedSearch" placeholder="Search or add new word..." class="search-input">
+            <p class="search-tip">Type to search both lists. Words not in either list will appear as suggestions you can add.</p>
           </div>
-          <div class="accordion-content">
-            <p>Upload a text file with words separated by whitespace or newlines.</p>
-            <div class="file-upload">
+
+          <div class="upload-container">
+            <div class="file-upload compact">
               <input type="file" id="wordlistFile" accept=".txt" onchange="handleFileUpload()">
-              <label for="wordlistFile">Choose File</label>
-              <span id="fileNameDisplay"></span>
+              <label for="wordlistFile">Upload Word List</label>
             </div>
             <div class="progress-bar" id="uploadProgress">
               <div class="progress-bar-fill" id="uploadProgressFill"></div>
             </div>
             <div id="uploadStatus" class="status-message"></div>
-            <div class="checkbox-wrapper">
-              <label class="checkbox-item">
-                <input type="checkbox" id="appendWordsCheckbox" checked>
-                Append to existing list
-              </label>
-              <label class="checkbox-item">
-                <input type="checkbox" id="applyBlacklistCheckbox" checked>
-                Apply blacklist filter
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="accordion">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>Manual Word Entry</span>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="accordion-content">
-            <div class="form-group">
-              <label for="customWordInput">Custom Word List (one per line):</label>
-              <textarea id="customWordInput" placeholder="Enter hex words, one per line"></textarea>
-            </div>
-            <button onclick="updateWordlist()">Update Words</button>
-            <button onclick="resetToDefaultWords()">Reset to Default</button>
-          </div>
-        </div>
-
-        <div class="accordion">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>Blacklist Management 🚫</span>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="accordion-content">
-            <p>Words in this list will be excluded from your wordlist when the filter is applied.</p>
-            <div class="form-group">
-              <label for="blacklistInput">Blacklisted Words (one per line):</label>
-              <textarea id="blacklistInput" placeholder="Enter words to blacklist, one per line"></textarea>
-            </div>
-            <p class="blacklist-instruction">Words in the blacklist will not appear in your wordlist. When you remove words from the blacklist, you can choose to add them to your wordlist automatically.</p>
-            <div class="checkbox-wrapper">
-              <label class="checkbox-item">
-                <input type="checkbox" id="applyBlacklistCheckbox" checked>
-                Auto-apply blacklist when updated
-              </label>
-              <label class="checkbox-item">
-                <input type="checkbox" id="addRemovedWordsCheckbox" checked>
-                Add blacklisted words to wordlist when removed from blacklist
-              </label>
-            </div>
-            <button onclick="updateBlacklist()" class="update-btn">Update Blacklist</button>
-            <p class="blacklist-note">⚠️ <strong>Tip:</strong> Blacklisted words are automatically filtered from your wordlist.</p>
           </div>
         </div>
       </div>
@@ -141,11 +88,23 @@
       <div class="output-container">
         <div class="grid-container">
           <div>
-            <h3>Current Word List</h3>
+            <div class="column-header">
+              <h3>Current Word List <span id="wordlistCount" class="count-badge"></span></h3>
+            </div>
+            <div class="column-actions">
+              <button onclick="resetToDefaultWords()" class="small-btn">Reset to Defaults</button>
+              <button onclick="clearWordlist()" class="small-btn">Clear All</button>
+            </div>
             <div id="wordlistDisplay" class="wordlist-container"></div>
           </div>
           <div>
-            <h3>Blacklisted Words</h3>
+            <div class="column-header">
+              <h3>Blacklisted Words <span id="blacklistCount" class="count-badge"></span></h3>
+            </div>
+            <div class="column-actions">
+              <button onclick="resetToDefaultBlacklist()" class="small-btn">Reset to Defaults</button>
+              <button onclick="clearBlacklist()" class="small-btn">Clear All</button>
+            </div>
             <div id="blacklistDisplay" class="wordlist-container"></div>
           </div>
         </div>
@@ -158,37 +117,42 @@
         <h3>Leet Speak Converter</h3>
         <p>Convert regular words to hex-compatible leet speak and add them to your wordlist.</p>
 
-        <div class="form-group">
-          <label for="leetInput">Words to Convert (one per line or space separated):</label>
-          <textarea id="leetInput" placeholder="Enter words to convert to leet speak" rows="6"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>Leet Speak Substitutions:</label>
-          <div class="checkbox-wrapper" id="leetSubOptions">
-            <label class="checkbox-item"><input type="checkbox" value="O:0" checked>O → 0</label>
-            <label class="checkbox-item"><input type="checkbox" value="I:1" checked>I → 1</label>
-            <label class="checkbox-item"><input type="checkbox" value="E:3">E → 3</label>
-            <label class="checkbox-item"><input type="checkbox" value="A:4">A → 4</label>
-            <label class="checkbox-item"><input type="checkbox" value="S:5">S → 5</label>
-            <label class="checkbox-item"><input type="checkbox" value="G:6">G → 6</label>
-            <label class="checkbox-item"><input type="checkbox" value="T:7">T → 7</label>
-            <label class="checkbox-item"><input type="checkbox" value="B:8">B → 8</label>
-            <label class="checkbox-item"><input type="checkbox" value="Z:2">Z → 2</label>
+        <div class="leet-converter">
+          <div class="form-group">
+            <label for="leetInput">Word to Convert:</label>
+            <input type="text" id="leetInput" placeholder="Enter a word to convert" class="search-input">
           </div>
-        </div>
 
-        <button onclick="convertToLeet()">Convert and Preview</button>
-        <button onclick="addLeetWordsToList()">Add Valid Words to List</button>
+          <div class="leet-preview">
+            <div class="leet-original">Original: <span id="originalWord">-</span></div>
+            <div class="leet-converted">Converted: <span id="convertedWord">-</span></div>
+            <div class="leet-validation" id="leetValidation">Enter a word to convert</div>
+          </div>
+
+          <div class="form-group">
+            <label>Leet Speak Substitutions:</label>
+            <div class="checkbox-wrapper" id="leetSubOptions">
+              <label class="checkbox-item"><input type="checkbox" value="O:0" checked>O → 0</label>
+              <label class="checkbox-item"><input type="checkbox" value="I:1" checked>I → 1</label>
+              <label class="checkbox-item"><input type="checkbox" value="E:3">E → 3</label>
+              <label class="checkbox-item"><input type="checkbox" value="A:4">A → 4</label>
+              <label class="checkbox-item"><input type="checkbox" value="S:5">S → 5</label>
+              <label class="checkbox-item"><input type="checkbox" value="G:6">G → 6</label>
+              <label class="checkbox-item"><input type="checkbox" value="T:7">T → 7</label>
+              <label class="checkbox-item"><input type="checkbox" value="B:8">B → 8</label>
+              <label class="checkbox-item"><input type="checkbox" value="Z:2">Z → 2</label>
+            </div>
+          </div>
+
+          <button id="addLeetWordBtn" onclick="addCurrentLeetWord()" class="spicy-btn" disabled>Add to Wordlist</button>
+        </div>
       </div>
 
       <div class="output-container">
-        <h3>Conversion Results</h3>
-        <div id="leetOutput" class="output">
-          # Conversion results will appear here...
-          <span class="blinking-cursor"></span>
+        <h3>Recently Added Leet Words</h3>
+        <div id="recentLeetWords" class="wordlist-container">
+          <div class="empty-message">No words added yet</div>
         </div>
-        <div class="stats" id="leetStats"></div>
       </div>
     </div>
 
