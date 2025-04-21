@@ -47,10 +47,6 @@ window.onload = function() {
     localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
   }
 
-  // Update the textareas with the current lists
-  document.getElementById('customWordInput').value = currentWordlist.join('\n');
-  document.getElementById('blacklistInput').value = currentBlacklist.join('\n');
-
   // Display the wordlist and blacklist chips
   updateWordlistDisplay();
   updateBlacklistDisplay();
@@ -66,6 +62,12 @@ window.onload = function() {
   if (output) {
     output.innerHTML = '# Ready to generate some spicy IPv6 addresses! 🌶️\n<span class="blinking-cursor"></span>';
   }
+
+  // Set up search input event listeners
+  setupSearchListeners();
+
+  // Set up leet converter
+  setupLeetConverter();
 };
 
 // Function to generate IPv6 addresses
@@ -253,11 +255,48 @@ function clearOutput() {
   }
 }
 
-// Function to convert words to leet speak
-function convertToLeet() {
+// Current leet word being converted
+let currentLeetWord = null;
+
+// Function to set up leet converter
+function setupLeetConverter() {
+  const leetInput = document.getElementById('leetInput');
+  const checkboxes = document.querySelectorAll('#leetSubOptions input[type="checkbox"]');
+
+  // Add event listener for input changes
+  leetInput.addEventListener('input', function() {
+    convertLeetRealtime();
+  });
+
+  // Add event listeners for checkbox changes
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      convertLeetRealtime();
+    });
+  });
+
+  // Initial setup
+  document.getElementById('addLeetWordBtn').disabled = true;
+}
+
+// Function to convert word in real-time
+function convertLeetRealtime() {
   const inputText = document.getElementById('leetInput').value.trim();
+  const originalWordSpan = document.getElementById('originalWord');
+  const convertedWordSpan = document.getElementById('convertedWord');
+  const validationDiv = document.getElementById('leetValidation');
+  const addButton = document.getElementById('addLeetWordBtn');
+
+  // Reset current leet word
+  currentLeetWord = null;
+  addButton.disabled = true;
+
+  // Clear displays if no input
   if (!inputText) {
-    alert('Please enter some words to convert.');
+    originalWordSpan.textContent = '-';
+    convertedWordSpan.textContent = '-';
+    validationDiv.textContent = 'Enter a word to convert';
+    validationDiv.className = 'leet-validation';
     return;
   }
 
@@ -269,94 +308,128 @@ function convertToLeet() {
     substitutions.push({ from, to });
   });
 
-  if (substitutions.length === 0) {
-    alert('Please select at least one leet speak substitution.');
-    return;
-  }
+  // Update original word display
+  originalWordSpan.textContent = inputText;
 
-  // Parse input words
-  const words = inputText.split(/[\s\n]+/)
-    .map(word => word.trim())
-    .filter(word => word);
+  // Convert to leet speak
+  let leetWord = inputText.toUpperCase();
 
-  if (words.length === 0) {
-    alert('No valid words found.');
-    return;
-  }
-
-  // Convert words to leet speak
-  const leetOutput = document.getElementById('leetOutput');
-  leetOutput.innerHTML = '# Leet speak conversion results:\n\n';
-
-  validLeetWords = [];
-
-  words.forEach(word => {
-    let leetWord = word.toUpperCase();
-
-    // Apply substitutions
-    substitutions.forEach(sub => {
-      const regex = new RegExp(sub.from, 'gi');
-      leetWord = leetWord.replace(regex, sub.to);
-    });
-
-    // Check if the result is a valid hex word
-    const isValid = isValidHexWord(leetWord);
-
-    // Add to output
-    const resultDiv = document.createElement('div');
-    resultDiv.classList.add('result');
-
-    if (isValid) {
-      resultDiv.innerHTML = `${word} → <strong>${leetWord}</strong> ✓`;
-      validLeetWords.push(leetWord);
-    } else {
-      resultDiv.innerHTML = `${word} → <strong>${leetWord}</strong> ✗ (not valid hex)`;
-    }
-
-    leetOutput.appendChild(resultDiv);
+  // Apply substitutions
+  substitutions.forEach(sub => {
+    const regex = new RegExp(sub.from, 'gi');
+    leetWord = leetWord.replace(regex, sub.to);
   });
 
-  // Update stats
-  const leetStats = document.getElementById('leetStats');
-  leetStats.textContent = `Valid Hex Words Found: ${validLeetWords.length}`;
+  // Update converted word display
+  convertedWordSpan.textContent = leetWord;
+
+  // Validate the converted word
+  validateLeetWord(leetWord);
 }
 
-// Function to add valid leet words to the wordlist
-function addLeetWordsToList() {
-  if (validLeetWords.length === 0) {
-    alert('No valid leet words to add. Convert some words first.');
+// Function to validate the converted leet word
+function validateLeetWord(leetWord) {
+  const validationDiv = document.getElementById('leetValidation');
+  const addButton = document.getElementById('addLeetWordBtn');
+
+  // Check if it's a valid hex word
+  if (!isValidHexWord(leetWord)) {
+    validationDiv.textContent = 'Not a valid hex word! Must only contain characters 0-9 and A-F, and be 4 characters long.';
+    validationDiv.className = 'leet-validation invalid';
     return;
   }
 
-  // Add to current wordlist, avoiding duplicates
-  const newWords = validLeetWords.filter(word => !currentWordlist.includes(word));
-
-  if (newWords.length === 0) {
-    alert('All valid leet words are already in your wordlist.');
+  // Check if it's already in the wordlist
+  if (currentWordlist.includes(leetWord)) {
+    validationDiv.textContent = 'This word is already in your wordlist!';
+    validationDiv.className = 'leet-validation warning';
     return;
   }
 
-  currentWordlist = [...currentWordlist, ...newWords];
+  // Check if it's in the blacklist
+  if (currentBlacklist.includes(leetWord)) {
+    validationDiv.textContent = 'This word is in your blacklist!';
+    validationDiv.className = 'leet-validation invalid';
+    return;
+  }
+
+  // If we got here, the word is valid
+  validationDiv.textContent = 'Valid hex word! Ready to add to your wordlist.';
+  validationDiv.className = 'leet-validation valid';
+  currentLeetWord = leetWord;
+  addButton.disabled = false;
+}
+
+// Function to add the current leet word to the wordlist
+function addCurrentLeetWord() {
+  if (!currentLeetWord) {
+    return;
+  }
+
+  // Add to wordlist
+  currentWordlist.push(currentLeetWord);
   localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
 
-  // Update the textarea and display
-  document.getElementById('customWordInput').value = currentWordlist.join('\n');
+  // Update the wordlist display
   updateWordlistDisplay();
 
-  // Provide feedback
-  alert(`Added ${newWords.length} new word${newWords.length !== 1 ? 's' : ''} to your wordlist.`);
+  // Add to recent leet words display
+  addToRecentLeetWords(currentLeetWord);
 
-  // Clear the valid leet words array
-  validLeetWords = [];
+  // Clear the input and reset
+  document.getElementById('leetInput').value = '';
+  document.getElementById('originalWord').textContent = '-';
+  document.getElementById('convertedWord').textContent = '-';
 
-  // Update leet stats
-  const leetStats = document.getElementById('leetStats');
-  leetStats.textContent = '';
+  const validationDiv = document.getElementById('leetValidation');
+  validationDiv.textContent = 'Word added successfully!';
+  validationDiv.className = 'leet-validation valid';
 
-  // Update the generator tab output with the results
+  // Store the word for feedback before resetting
+  const addedWord = currentLeetWord;
+
+  // Disable the add button and reset current leet word
+  document.getElementById('addLeetWordBtn').disabled = true;
+  currentLeetWord = null;
+
+  // Provide feedback in the generator tab
   const output = document.getElementById('output');
   if (output) {
-    output.innerHTML = `# Added ${newWords.length} new word${newWords.length !== 1 ? 's' : ''} to your wordlist.\n# Total of ${currentWordlist.length} words now available.\n`;
+    output.innerHTML = `# Added "${addedWord}" to your wordlist.\n# Total of ${currentWordlist.length} words now available.\n`;
+  }
+}
+
+// Function to add a word to the recent leet words display
+function addToRecentLeetWords(word) {
+  const container = document.getElementById('recentLeetWords');
+
+  // Remove empty message if present
+  const emptyMessage = container.querySelector('.empty-message');
+  if (emptyMessage) {
+    emptyMessage.remove();
+  }
+
+  // Create a new word chip
+  const chip = document.createElement('div');
+  chip.classList.add('word-chip');
+
+  const wordText = document.createElement('span');
+  wordText.classList.add('word-chip-text');
+  wordText.textContent = word;
+
+  chip.appendChild(wordText);
+
+  // Add to the beginning of the container
+  if (container.firstChild) {
+    container.insertBefore(chip, container.firstChild);
+  } else {
+    container.appendChild(chip);
+  }
+
+  // Limit to 20 recent words
+  const chips = container.querySelectorAll('.word-chip');
+  if (chips.length > 20) {
+    container.removeChild(chips[chips.length - 1]);
   }
 }
 
@@ -381,19 +454,80 @@ function toggleAccordion(element) {
   element.parentElement.classList.toggle('accordion-expanded');
 }
 
-function updateWordlistDisplay() {
+function updateWordlistDisplay(filter = '') {
   const container = document.getElementById('wordlistDisplay');
   container.innerHTML = '';
+
+  // Update count badge
+  const countBadge = document.getElementById('wordlistCount');
+  countBadge.textContent = currentWordlist.length;
 
   if (currentWordlist.length === 0) {
     container.innerHTML = '<div style="color: var(--error-color);">No words in list</div>';
     return;
   }
 
-  currentWordlist.forEach(word => {
+  // Filter words if a search term is provided
+  const displayWords = filter ?
+    currentWordlist.filter(word => word.includes(filter.toUpperCase())) :
+    currentWordlist;
+
+  // Show filtered count if filtering
+  if (filter && displayWords.length < currentWordlist.length) {
+    countBadge.textContent = `${displayWords.length}/${currentWordlist.length}`;
+  } else {
+    countBadge.textContent = currentWordlist.length;
+  }
+
+  displayWords.forEach(word => {
     const chip = document.createElement('div');
     chip.classList.add('word-chip');
-    chip.textContent = word;
+
+    // Highlight the matching part if filtering
+    if (filter && word.includes(filter.toUpperCase())) {
+      const matchIndex = word.indexOf(filter.toUpperCase());
+      const beforeMatch = word.substring(0, matchIndex);
+      const match = word.substring(matchIndex, matchIndex + filter.length);
+      const afterMatch = word.substring(matchIndex + filter.length);
+
+      const wordText = document.createElement('span');
+      wordText.classList.add('word-chip-text');
+
+      if (beforeMatch) {
+        const beforeSpan = document.createElement('span');
+        beforeSpan.textContent = beforeMatch;
+        wordText.appendChild(beforeSpan);
+      }
+
+      const matchSpan = document.createElement('span');
+      matchSpan.textContent = match;
+      matchSpan.classList.add('highlight-match');
+      wordText.appendChild(matchSpan);
+
+      if (afterMatch) {
+        const afterSpan = document.createElement('span');
+        afterSpan.textContent = afterMatch;
+        wordText.appendChild(afterSpan);
+      }
+
+      chip.appendChild(wordText);
+    } else {
+      const wordText = document.createElement('span');
+      wordText.classList.add('word-chip-text');
+      wordText.textContent = word;
+      chip.appendChild(wordText);
+    }
+
+    const removeBtn = document.createElement('span');
+    removeBtn.classList.add('remove-word');
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove from wordlist';
+    removeBtn.onclick = function(e) {
+      e.stopPropagation();
+      removeWordFromList(word);
+    };
+
+    chip.appendChild(removeBtn);
     container.appendChild(chip);
   });
 
@@ -401,19 +535,80 @@ function updateWordlistDisplay() {
   updateStats();
 }
 
-function updateBlacklistDisplay() {
+function updateBlacklistDisplay(filter = '') {
   const container = document.getElementById('blacklistDisplay');
   container.innerHTML = '';
+
+  // Update count badge
+  const countBadge = document.getElementById('blacklistCount');
+  countBadge.textContent = currentBlacklist.length;
 
   if (currentBlacklist.length === 0) {
     container.innerHTML = '<div style="color: var(--accent-color);">No blacklisted words</div>';
     return;
   }
 
-  currentBlacklist.forEach(word => {
+  // Filter words if a search term is provided
+  const displayWords = filter ?
+    currentBlacklist.filter(word => word.includes(filter.toUpperCase())) :
+    currentBlacklist;
+
+  // Show filtered count if filtering
+  if (filter && displayWords.length < currentBlacklist.length) {
+    countBadge.textContent = `${displayWords.length}/${currentBlacklist.length}`;
+  } else {
+    countBadge.textContent = currentBlacklist.length;
+  }
+
+  displayWords.forEach(word => {
     const chip = document.createElement('div');
     chip.classList.add('word-chip', 'blacklist-chip');
-    chip.textContent = word;
+
+    // Highlight the matching part if filtering
+    if (filter && word.includes(filter.toUpperCase())) {
+      const matchIndex = word.indexOf(filter.toUpperCase());
+      const beforeMatch = word.substring(0, matchIndex);
+      const match = word.substring(matchIndex, matchIndex + filter.length);
+      const afterMatch = word.substring(matchIndex + filter.length);
+
+      const wordText = document.createElement('span');
+      wordText.classList.add('word-chip-text');
+
+      if (beforeMatch) {
+        const beforeSpan = document.createElement('span');
+        beforeSpan.textContent = beforeMatch;
+        wordText.appendChild(beforeSpan);
+      }
+
+      const matchSpan = document.createElement('span');
+      matchSpan.textContent = match;
+      matchSpan.classList.add('highlight-match');
+      wordText.appendChild(matchSpan);
+
+      if (afterMatch) {
+        const afterSpan = document.createElement('span');
+        afterSpan.textContent = afterMatch;
+        wordText.appendChild(afterSpan);
+      }
+
+      chip.appendChild(wordText);
+    } else {
+      const wordText = document.createElement('span');
+      wordText.classList.add('word-chip-text');
+      wordText.textContent = word;
+      chip.appendChild(wordText);
+    }
+
+    const removeBtn = document.createElement('span');
+    removeBtn.classList.add('remove-word');
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove from blacklist';
+    removeBtn.onclick = function(e) {
+      e.stopPropagation();
+      removeWordFromBlacklist(word);
+    };
+
+    chip.appendChild(removeBtn);
     container.appendChild(chip);
   });
 }
@@ -633,16 +828,12 @@ function filterBlacklistedWords(wordlist) {
 
 function resetToDefaultWords() {
   currentWordlist = [...DEFAULT_WORDS];
-  document.getElementById('customWordInput').value = currentWordlist.join('\n');
   localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
   updateWordlistDisplay();
 
   // Provide feedback
   const output = document.getElementById('output');
   output.innerHTML = '# Wordlist reset to default values.\n';
-
-  // Switch to generator tab
-  openTab({ currentTarget: document.querySelector('.tab:first-child') }, 'generatorTab');
 }
 
 function isValidHexWord(word) {
@@ -650,9 +841,405 @@ function isValidHexWord(word) {
 }
 
 function parseWordsFromText(text) {
-  return text.split(/[\s\n]+/)
-    .map(word => word.trim().toUpperCase())
+  // Split by any whitespace (spaces, tabs, newlines)
+  // Also handle commas and other common separators
+  return text.split(/[\s\n,;:]+/)
+    .map(word => {
+      // Remove any special characters and trim
+      return word.replace(/[^A-Za-z0-9]/g, '').trim().toUpperCase();
+    })
     .filter(word => word && isValidHexWord(word));
+}
+
+// Setup search input event listeners
+function setupSearchListeners() {
+  const unifiedSearch = document.getElementById('unifiedSearch');
+
+  // Unified search
+  unifiedSearch.addEventListener('input', function() {
+    const searchTerm = this.value.trim().toUpperCase();
+    updateWordlistDisplay(searchTerm);
+    updateBlacklistDisplay(searchTerm);
+
+    // Check if we need to show a suggestion
+    if (searchTerm && isValidHexWord(searchTerm) &&
+        !currentWordlist.includes(searchTerm) &&
+        !currentBlacklist.includes(searchTerm)) {
+      showSuggestion(searchTerm);
+    } else {
+      hideSuggestion();
+    }
+  });
+
+  // Add word on Enter key
+  unifiedSearch.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      const searchTerm = this.value.trim().toUpperCase();
+      if (searchTerm && isValidHexWord(searchTerm)) {
+        if (!currentWordlist.includes(searchTerm) && !currentBlacklist.includes(searchTerm)) {
+          addWordToList(searchTerm);
+        }
+      }
+    }
+  });
+}
+
+// Show suggestion for a new word
+function showSuggestion(word) {
+  // Check if suggestion already exists
+  let suggestionExists = document.querySelector('.suggestion-chip');
+  if (suggestionExists) {
+    hideSuggestion();
+  }
+
+  // Create suggestion in wordlist
+  const wordlistContainer = document.getElementById('wordlistDisplay');
+  const suggestionChip = document.createElement('div');
+  suggestionChip.classList.add('word-chip', 'suggestion-chip');
+  suggestionChip.setAttribute('data-word', word);
+
+  const wordText = document.createElement('span');
+  wordText.classList.add('word-chip-text');
+  wordText.textContent = word;
+
+  const addBtn = document.createElement('span');
+  addBtn.classList.add('add-word');
+  addBtn.textContent = '+';
+  addBtn.title = 'Add to wordlist';
+  addBtn.onclick = function(e) {
+    e.stopPropagation();
+    addWordToList(word);
+  };
+
+  suggestionChip.appendChild(wordText);
+  suggestionChip.appendChild(addBtn);
+
+  // Add to beginning of wordlist
+  if (wordlistContainer.firstChild) {
+    wordlistContainer.insertBefore(suggestionChip, wordlistContainer.firstChild);
+  } else {
+    wordlistContainer.appendChild(suggestionChip);
+  }
+
+  // Also create suggestion in blacklist
+  const blacklistContainer = document.getElementById('blacklistDisplay');
+  const blacklistSuggestion = suggestionChip.cloneNode(true);
+  blacklistSuggestion.querySelector('.add-word').onclick = function(e) {
+    e.stopPropagation();
+    addWordToBlacklist(word);
+  };
+  blacklistSuggestion.querySelector('.add-word').title = 'Add to blacklist';
+
+  // Add to beginning of blacklist
+  if (blacklistContainer.firstChild) {
+    blacklistContainer.insertBefore(blacklistSuggestion, blacklistContainer.firstChild);
+  } else {
+    blacklistContainer.appendChild(blacklistSuggestion);
+  }
+}
+
+// Hide suggestion
+function hideSuggestion() {
+  const suggestions = document.querySelectorAll('.suggestion-chip');
+  suggestions.forEach(suggestion => suggestion.remove());
+}
+
+// Add a word to the wordlist
+function addWordToList(wordToAdd) {
+  const searchInput = document.getElementById('unifiedSearch');
+  const word = wordToAdd || searchInput.value.trim().toUpperCase();
+
+  if (!word) {
+    return;
+  }
+
+  if (!isValidHexWord(word)) {
+    alert('Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.');
+    return;
+  }
+
+  if (currentWordlist.includes(word)) {
+    alert('This word is already in your wordlist.');
+    return;
+  }
+
+  if (currentBlacklist.includes(word)) {
+    alert('This word is in your blacklist. Remove it from the blacklist first.');
+    return;
+  }
+
+  // Add the word
+  currentWordlist.push(word);
+  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+  // Clear the search input
+  searchInput.value = '';
+
+  // Update display
+  updateWordlistDisplay();
+  updateBlacklistDisplay();
+  hideSuggestion();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Added "${word}" to your wordlist.\n# Total of ${currentWordlist.length} words now available.\n`;
+  }
+}
+
+// Remove a word from the wordlist
+function removeWordFromList(word) {
+  currentWordlist = currentWordlist.filter(w => w !== word);
+  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+  // Update display
+  const searchTerm = document.getElementById('unifiedSearch').value.trim().toUpperCase();
+  updateWordlistDisplay(searchTerm);
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Removed "${word}" from your wordlist.\n# ${currentWordlist.length} words remaining.\n`;
+  }
+}
+
+// Add a word to the blacklist
+function addWordToBlacklist(wordToAdd) {
+  const searchInput = document.getElementById('unifiedSearch');
+  const word = wordToAdd || searchInput.value.trim().toUpperCase();
+
+  if (!word) {
+    return;
+  }
+
+  if (!isValidHexWord(word)) {
+    alert('Invalid hex word. Words must only contain characters 0-9 and A-F, and be 4 characters long.');
+    return;
+  }
+
+  if (currentBlacklist.includes(word)) {
+    alert('This word is already in your blacklist.');
+    return;
+  }
+
+  // Add the word to blacklist
+  currentBlacklist.push(word);
+  localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+  // Remove from wordlist if present
+  if (currentWordlist.includes(word)) {
+    currentWordlist = currentWordlist.filter(w => w !== word);
+    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+    updateWordlistDisplay();
+  }
+
+  // Clear the search input
+  searchInput.value = '';
+
+  // Update display
+  updateBlacklistDisplay();
+  hideSuggestion();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Added "${word}" to your blacklist.\n# Total of ${currentBlacklist.length} blacklisted words.\n`;
+  }
+}
+
+// Remove a word from the blacklist
+function removeWordFromBlacklist(word) {
+  currentBlacklist = currentBlacklist.filter(w => w !== word);
+  localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+  // Update display
+  const searchTerm = document.getElementById('unifiedSearch').value.trim().toUpperCase();
+  updateBlacklistDisplay(searchTerm);
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Removed "${word}" from your blacklist.\n# ${currentBlacklist.length} blacklisted words remaining.\n`;
+  }
+}
+
+// Clear the wordlist
+function clearWordlist() {
+  if (confirm('Are you sure you want to clear your entire wordlist?')) {
+    currentWordlist = [];
+    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+    updateWordlistDisplay();
+
+    // Provide feedback
+    const output = document.getElementById('output');
+    if (output) {
+      output.innerHTML = '# Wordlist cleared. All words have been removed.\n';
+    }
+  }
+}
+
+// Clear the blacklist
+function clearBlacklist() {
+  if (confirm('Are you sure you want to clear your entire blacklist?')) {
+    currentBlacklist = [];
+    localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+    updateBlacklistDisplay();
+
+    // Provide feedback
+    const output = document.getElementById('output');
+    if (output) {
+      output.innerHTML = '# Blacklist cleared. All words have been removed.\n';
+    }
+  }
+}
+
+// Reset blacklist to defaults
+function resetToDefaultBlacklist() {
+  currentBlacklist = [...DEFAULT_BLACKLIST];
+  localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+  // Apply blacklist to wordlist
+  currentWordlist = filterBlacklistedWords(currentWordlist);
+  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+  // Update displays
+  updateBlacklistDisplay();
+  updateWordlistDisplay();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = '# Blacklist reset to default values.\n';
+  }
+}
+
+// Add all missing words from search
+function addAllMissingWords() {
+  const searchInput = document.getElementById('wordlistSearch');
+  const word = searchInput.value.trim().toUpperCase();
+
+  if (!word || !isValidHexWord(word) || currentWordlist.includes(word) || currentBlacklist.includes(word)) {
+    return;
+  }
+
+  // Add the word
+  currentWordlist.push(word);
+  localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+  // Clear the search input
+  searchInput.value = '';
+
+  // Update display
+  updateWordlistDisplay();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Added "${word}" to your wordlist.\n# Total of ${currentWordlist.length} words now available.\n`;
+  }
+}
+
+// Add all missing words to blacklist from search
+function addAllMissingToBlacklist() {
+  const searchInput = document.getElementById('blacklistSearch');
+  const word = searchInput.value.trim().toUpperCase();
+
+  if (!word || !isValidHexWord(word) || currentBlacklist.includes(word)) {
+    return;
+  }
+
+  // Add the word to blacklist
+  currentBlacklist.push(word);
+  localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+  // Remove from wordlist if present
+  if (currentWordlist.includes(word)) {
+    currentWordlist = currentWordlist.filter(w => w !== word);
+    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+    updateWordlistDisplay();
+  }
+
+  // Clear the search input
+  searchInput.value = '';
+
+  // Update display
+  updateBlacklistDisplay();
+
+  // Provide feedback
+  const output = document.getElementById('output');
+  if (output) {
+    output.innerHTML = `# Added "${word}" to your blacklist.\n# Total of ${currentBlacklist.length} blacklisted words.\n`;
+  }
+}
+
+// Remove filtered words from wordlist
+function removeFilteredWords() {
+  const searchInput = document.getElementById('wordlistSearch');
+  const filter = searchInput.value.trim().toUpperCase();
+
+  if (!filter) {
+    return;
+  }
+
+  // Get filtered words
+  const filteredWords = currentWordlist.filter(word => word.includes(filter));
+
+  if (filteredWords.length === 0) {
+    return;
+  }
+
+  if (confirm(`Are you sure you want to remove ${filteredWords.length} filtered word(s) from your wordlist?`)) {
+    // Remove filtered words
+    currentWordlist = currentWordlist.filter(word => !word.includes(filter));
+    localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
+
+    // Clear the search input
+    searchInput.value = '';
+
+    // Update display
+    updateWordlistDisplay();
+
+    // Provide feedback
+    const output = document.getElementById('output');
+    if (output) {
+      output.innerHTML = `# Removed ${filteredWords.length} filtered word(s) from your wordlist.\n# ${currentWordlist.length} words remaining.\n`;
+    }
+  }
+}
+
+// Remove filtered words from blacklist
+function removeFilteredFromBlacklist() {
+  const searchInput = document.getElementById('blacklistSearch');
+  const filter = searchInput.value.trim().toUpperCase();
+
+  if (!filter) {
+    return;
+  }
+
+  // Get filtered words
+  const filteredWords = currentBlacklist.filter(word => word.includes(filter));
+
+  if (filteredWords.length === 0) {
+    return;
+  }
+
+  if (confirm(`Are you sure you want to remove ${filteredWords.length} filtered word(s) from your blacklist?`)) {
+    // Remove filtered words
+    currentBlacklist = currentBlacklist.filter(word => !word.includes(filter));
+    localStorage.setItem('ipv6Blacklist', JSON.stringify(currentBlacklist));
+
+    // Clear the search input
+    searchInput.value = '';
+
+    // Update display
+    updateBlacklistDisplay();
+
+    // Provide feedback
+    const output = document.getElementById('output');
+    if (output) {
+      output.innerHTML = `# Removed ${filteredWords.length} filtered word(s) from your blacklist.\n# ${currentBlacklist.length} blacklisted words remaining.\n`;
+    }
+  }
 }
 
 function handleFileUpload() {
@@ -660,14 +1247,12 @@ function handleFileUpload() {
   const progressBar = document.getElementById('uploadProgress');
   const progressFill = document.getElementById('uploadProgressFill');
   const statusMsg = document.getElementById('uploadStatus');
-  const fileNameDisplay = document.getElementById('fileNameDisplay');
 
   if (!fileInput.files.length) {
     return;
   }
 
   const file = fileInput.files[0];
-  fileNameDisplay.textContent = file.name;
 
   if (file.size > 5 * 1024 * 1024) { // 5MB limit
     statusMsg.textContent = 'File is too large. Maximum size is 5MB.';
@@ -705,19 +1290,16 @@ function handleFileUpload() {
     // Check if any words were filtered out
     const filteredOutWords = originalWords.filter(word => !filteredWords.includes(word));
 
-    if (document.getElementById('appendWordsCheckbox').checked) {
-      // Append filtered words to current wordlist
-      currentWordlist = [...new Set([...currentWordlist, ...filteredWords])];
-    } else {
-      // Replace with filtered words
-      currentWordlist = filteredWords;
-    }
+    // Always append to current wordlist
+    const newWords = filteredWords.filter(word => !currentWordlist.includes(word));
+    currentWordlist = [...currentWordlist, ...newWords];
 
     localStorage.setItem('ipv6WordList', JSON.stringify(currentWordlist));
     updateWordlistDisplay(); // This already calls updateStats()
+    updateBlacklistDisplay();
 
     // Provide more detailed feedback
-    let statusMessage = `File processed successfully. ${filteredWords.length} words imported`;
+    let statusMessage = `File processed: ${newWords.length} new words added`;
     if (filteredOutWords.length > 0) {
       statusMessage += `, ${filteredOutWords.length} blacklisted word${filteredOutWords.length !== 1 ? 's' : ''} filtered out`;
     }
@@ -726,13 +1308,22 @@ function handleFileUpload() {
     statusMsg.textContent = statusMessage;
     statusMsg.className = 'status-message success';
 
+    // Clear the file input
+    fileInput.value = '';
+
+    // Hide progress bar after 3 seconds
+    setTimeout(() => {
+      progressBar.style.display = 'none';
+      statusMsg.textContent = '';
+    }, 3000);
+
     // Also update the generator tab output with the results
     const output = document.getElementById('output');
     if (output) {
-      let message = `# Word list updated with ${filteredWords.length} imported words.\n`;
+      let message = `# Word list updated with ${newWords.length} new words.\n`;
 
       if (filteredOutWords.length > 0) {
-        message += `# ${filteredOutWords.length} blacklisted word${filteredOutWords.length !== 1 ? 's were' : ' was'} filtered out: ${filteredOutWords.join(', ')}.\n`;
+        message += `# ${filteredOutWords.length} blacklisted word${filteredOutWords.length !== 1 ? 's were' : ' was'} filtered out.\n`;
       }
 
       message += `# Total of ${currentWordlist.length} words now available.\n`;
