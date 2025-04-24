@@ -106,7 +106,7 @@ function cancelModal() {
 const dynamicSubtitles = [
   "Addresses that look as good as you do",
   "Intranet vanity plates",
-  "Memorable IP addresses for memorable people",
+  "Remember me when you forget your IP",
   "Spicy pseudo-domains for the social elite",
   "Network identifiers with personality",
   "IPv6 addresses that sizzle like fajitas",
@@ -123,14 +123,10 @@ function setRandomSubtitle() {
   }
 }
 
-// Function to update subtitle on tab change
+// Function to update subtitle on tab change - disabled as per user request
 function updateSubtitleOnTabChange() {
-  const tabs = document.querySelectorAll('.tab');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      setRandomSubtitle();
-    });
-  });
+  // No longer changing subtitle on tab change
+  // Subtitle will only be set once on page load
 }
 
 // Initialize app
